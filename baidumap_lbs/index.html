@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style type="text/css">
+		body, html { width: 100%; height: 100%; margin:0; font-family: Arial, Tahoma; }
+		#allmap { width: 100%; height: 100%; float: left; }
+		input { height: 20px; line-height: 20px; padding: 0 5px; margin: 0; width: 300px; }
+		.BMap_pop { font-size: 12px; }
+		.BMap_bubble_title { font-size: 14px; font-weight: bold; margin: 0 0 10px 0; padding: 0; }
+		.rowText { height: 20px; line-height: 20px; overflow: scroll; padding: 5px 0; }
+		.rowTextArea { height: 50px; padding: 5px 0; }
+		.rowTextArea textarea { width: 308px; height: 50px; }
+		.rowText span, .rowTextArea span { margin: 0 10px 0 0; vertical-align: top; }
+		.rowTextSubmit { margin: 5px 0 0 32px; height: 30px; line-height: 30px; }
+		.rowTextSubmit span { margin: 0 0 0 10px; }
+	</style>
+	<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=800402c858110e5f2e1c96c8ca810ca9"></script>
+	<!-- <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=rBdIpvimIOX4ao5GL7bGWdkH"></script> -->
+	<script type="text/javascript" src="http://api.map.baidu.com/library/SearchInfoWindow/1.5/src/SearchInfoWindow_min.js"></script>
+	<link rel="stylesheet" href="http://api.map.baidu.com/library/SearchInfoWindow/1.5/src/SearchInfoWindow_min.css" />
+	<title>看房记录</title>
+</head>
+<body>
+	<div id="allmap"></div>
+</body>
+</html>
+<script type="text/javascript" src="http://api.map.baidu.com/library/MarkerTool/1.2/src/MarkerTool_min.js"></script>
+<script type="text/javascript" src="https://cdn.bootcss.com/jquery/3.1.0/jquery.min.js"></script>
+<script type="text/javascript">
+// http://lbsyun.baidu.com/index.php?title=lbscloud/api/geodata
+/*
+ * 百度地图全局配置信息
+ */
+var map = new BMap.Map("allmap");          // 创建地图实例
+map.centerAndZoom(new BMap.Point(116.403694, 39.947552), 14);  // 初始化地图，设置中心点坐标和地图级别
+map.enableScrollWheelZoom(false);
+// 添加全景控件
+map.addControl(new BMap.PanoramaControl());
+// 左上角，添加比例尺
+map.addControl(new BMap.ScaleControl({anchor: BMAP_ANCHOR_BOTTOM_RIGHT}));
+// 左上角，添加默认缩放平移控件
+map.addControl(new BMap.NavigationControl());
+
+/*
+ * 标注工具配置
+ */
+// 标注工具弹窗内容
+var markText = [];
+markText.push('<div class="rowText"><span>名称</span><input type="text" name="title" id="title" /></div>');
+markText.push('<div class="rowText"><span>地址</span><input type="text" name="address" id="address" /></div>');
+markText.push('<div class="rowText"><span>中介</span><input type="text" name="hagent" id="hagent" /></div>');
+markText.push('<div><input type="hidden" name="longitude" id="longitude" /><input type="hidden" name="latitude" id="latitude" /></div>');
+markText.push('<div class="rowTextArea"><span>看房</span><textarea name="hvisits" id="hvisits"></textarea></div>');
+markText.push('<div class="rowTextArea"><span>备注</span><textarea name="hremark" id="hremark"></textarea></div>');
+markText.push('<div class="rowTextSubmit"><button type="button" onclick="postForm();">保存</button> &nbsp; <button type="button" onclick="removeMarker()">取消</button><span id="notify"></span></div>');
+
+var markWindow = new BMap.InfoWindow(markText.join(''), {
+	offset: new BMap.Size(0, -10),
+	width: 350,
+	maxWidth: 600,
+	height: 300,
+	enableAutoPan: true,
+	enableMessage: true,
+	title: '添加标注点'
+});
+// 直接关闭markWindow，删除标注
+markWindow.addEventListener('close', function(e) {
+	removeMarker();
+});
+
+var curMarker = null;  // 记录当前添加的marker
+// 移除标注
+function removeMarker() {
+	curMarker.remove();
+}
+
+// 创建标注工具
+var markTool = new BMapLib.MarkerTool(map, {autoClose: true});
+markTool.addEventListener('markend', function(e) {
+	let mkr = e.marker;
+	mkr.openInfoWindow(markWindow);
+	curMarker = mkr;
+
+	// 设置默认值：经纬度
+	let pt = mkr.getPosition();
+	$('#longitude').val(pt.lng);
+	$('#latitude').val(pt.lat);
+	// 设置默认值：地址
+	let geoc = new BMap.Geocoder();
+	geoc.getLocation(pt, function(rs) {
+		let comp = rs.addressComponents;
+		$('#address').val(comp.province + comp.city + comp.district + comp.street + comp.streetNumber);
+	});
+});
+
+// 重置表单
+function resetForm() {
+	$('#title').val('');
+	$('#address').val('');
+	$('#hagent').val('');
+	$('#longitude').val('');
+	$('#latitude').val('');
+	$('#hvisits').val('');
+	$('#hremark').val('');
+	$('#notify').html('');
+}
+
+// 提交标注表单数据
+function postForm() {
+	let title = $('#title').val();
+	let address = $('#address').val();
+	let hagent = $('#hagent').val();
+	let longitude = $('#longitude').val();
+	let latitude = $('#latitude').val();
+	let hvisits = $('#hvisits').val();
+	let hremark = $('#hremark').val();
+
+	if (!title || !address || !hagent || !hvisits || !hremark) {
+		$('#notify').html('表单没填完');
+		return;
+	}
+
+	$.post('/', {
+		title: title,
+		address: address,
+		longitude: longitude,
+		latitude: latitude,
+		hagent: hagent,
+		hvisits: hvisits,
+		hremark: hremark
+	}, function(data, status) {
+		if (status == 'success') {
+			$('#notify').html(data.message);
+			markWindow.delay(1000);
+		}
+	}, 'json');
+
+	// 添加完成，如果窗口状态为打开，关闭窗口
+	if (markWindow.isOpen()) {
+		map.closeInfoWindow();
+	}
+}
+
+/*
+ * 创建右键菜单功能，默认打开标注工具
+ */
+var menu = new BMap.ContextMenu();
+menu.addItem(new BMap.MenuItem('添加标注', function(){
+	markTool.open();
+}, 100));
+map.addContextMenu(menu);
+
+/*
+ * 添加麻点图层
+ */
+customLayer = new BMap.CustomLayer({
+	geotableId: 146844,
+	q: '',     //检索关键字
+	tags: '',  //空格分隔的多字符串
+	filter: '' //过滤条件,参考http://developer.baidu.com/map/lbs-geosearch.htm#.search.nearby
+});
+map.addTileLayer(customLayer);
+customLayer.addEventListener('hotspotclick', function (e) {
+	let customPoi = e.customPoi;
+	let contentPoi = e.content;
+	let content = [];
+	content.push('<div class="">地址：' + customPoi.address + '</div>');
+	content.push('<div class="">中介：' + contentPoi.hagent + '</div>');
+	content.push('<div class="">记录：' + contentPoi.hvisits + '</div>');
+	content.push('<div class="">备注：' + contentPoi.hremark + '</div>');
+	let searchInfoWindow = new BMapLib.SearchInfoWindow(map, content.join(''), {
+		title: '<strong>' + customPoi.title + '</strong>',    //标题
+		width: 400,               //宽度
+		height: 120,              //高度
+		panel : "panel",          //检索结果面板
+		enableAutoPan : true,     //自动平移
+		enableSendToPhone: true,  //是否显示发送到手机按钮
+		searchTypes :[
+			BMAPLIB_TAB_SEARCH,   //周边检索
+			BMAPLIB_TAB_TO_HERE   //到这里去
+		]
+	});
+	searchInfoWindow.open(new BMap.Point(customPoi.point.lng, customPoi.point.lat));
+});
+// 删除麻点图层
+// map.removeTileLayer(customLayer);
+</script>
